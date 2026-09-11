@@ -39,6 +39,12 @@ except Exception:
                "  Please install distro module with : pip install distro")
         sys.exit(-1)
 
+def is_darwin():
+    '''method that checks macOS
+
+    :rtype: boolean
+    '''
+    return sys.platform == 'darwin'
 
 def is_windows():
     '''method that checks windows OS
@@ -74,6 +80,8 @@ def get_distribution(codes):
     '''
     if is_windows():
         return "W"
+    elif is_darwin():
+        return "macOS"
 
     # else get linux distribution description from platform, and encode it with code
     lin_distrib = linux_distribution()[0].lower()
@@ -115,7 +123,7 @@ def get_distrib_version(distrib):
     :rtype: str
     '''
 
-    if is_windows():
+    if is_windows() or is_darwin():
         return release()
 
     # get version from platform
@@ -166,6 +174,6 @@ def get_nb_proc():
                 nb_proc = int(os.environ["NUMBER_OF_PROCESSORS"])
             else:
                 nb_proc = 1
-        else:
+        else: # valid for windows and macos
             nb_proc=int(os.sysconf('SC_NPROCESSORS_ONLN'))
     return nb_proc

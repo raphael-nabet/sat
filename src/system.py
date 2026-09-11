@@ -426,6 +426,9 @@ def get_pkg_check_cmd(dist_name):
     if dist_name in ["CO","FD","MG","MD","CO","OS"]: # linux using rpm
         linux="RH"  
         manager_msg_err="Error : command failed because sat was not able to find apt command"
+    elif dist_name == "macOS":
+        linux="MAC"
+        manager_msg_err="Error : command failed because sat was not able to find brew command"
     else:
         linux="DB"
         manager_msg_err="Error : command failed because sat was not able to find rpm command"
@@ -434,6 +437,7 @@ def get_pkg_check_cmd(dist_name):
     cmd_which_rpm  = ["which", "rpm"]
     cmd_which_apt  = ["which", "apt"]
     cmd_which_dpkg = ["which", "dpkg-query"]
+    cmd_which_brew = ["which", "brew"]
     with open(os.devnull, 'w') as devnull:
         # 1) we search for apt (debian based systems)
         completed=SP.call(cmd_which_dpkg,stdout=devnull, stderr=SP.STDOUT)
@@ -450,8 +454,14 @@ def get_pkg_check_cmd(dist_name):
                 if completed==0 and linux=="RH":
                     cmd_is_package_installed=["rpm", "-q"]
                 else:
-                    # no package manager was found corresponding to dist_name
-                    raise src.SatException(manager_msg_err)
+                    # 4) if rpm not found search for brew
+                    completed = SP.call(cmd_which_brew, stdout=devnull, stderr=SP.STDOUT)
+
+                    if completed==0 and linux=="MAC":
+                        cmd_is_package_installed=["brew", "list"]
+                    else:
+                        # no package manager was found corresponding to dist_name
+                        raise src.SatException(manager_msg_err)
     return cmd_is_package_installed
 
 def check_system_pkgs(check_cmd, pkgs):

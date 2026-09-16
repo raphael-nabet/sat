@@ -125,6 +125,8 @@ def get_distrib_version(distrib):
 
     if is_windows() or is_darwin():
         return release()
+    if is_darwin():
+        return release().split('.')[0]
 
     # get version from platform
     dist_version=linux_distribution()[1].split('.')

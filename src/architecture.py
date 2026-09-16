@@ -123,7 +123,7 @@ def get_distrib_version(distrib):
     :rtype: str
     '''
 
-    if is_windows() or is_darwin():
+    if is_windows():
         return release()
     if is_darwin():
         return release().split('.')[0]

@@ -788,7 +788,6 @@ then
   echo "You must run this script in a BASH shell."
   echo "As you are using another shell. Please first run: bash"
   echo
-  exit 1
 fi
 ##########################################################################
 #

@@ -487,14 +487,21 @@ def get_product_section(config, product_name, version, section=None):
         if src.architecture.is_windows() and "default_win" in aProd:
             for key in aProd["default_win"]:
                 prod_info[key]=aProd["default_win"][key]
+        if src.architecture.is_darwin() and "default_macOS" in aProd:
+            for key in aProd["default_macOS"]:
+                prod_info[key]=aProd["default_macOS"][key]
         if pi!=None and pi.section!="default":
             # update prod_info with incremental definition contained in pi
             for key in pi:
                 prod_info[key]=pi[key]
             win_section=pi.section+"_win"
+            mac_section=pi.section+"_macOS"
             if src.architecture.is_windows() and win_section in aProd:
                 for key in aProd[win_section]:
                     prod_info[key]=aProd[win_section][key]
+            if src.architecture.is_darwin() and mac_section in aProd:
+                for key in aProd[mac_section]:
+                    prod_info[key]=aProd[mac_section][key]
     else:
         prod_info=pi
 

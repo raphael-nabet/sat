@@ -63,6 +63,7 @@ class Builder:
         # in case a product defines its own configuration, then use it
         if "cmake_build_type" in self.product_info:
             self.set_cmake_build_type(self.product_info.cmake_build_type)
+
         # keep backward compatibility
         if "debug" in self.product_info and self.product_info.debug == "yes":
             self.debug_mode = True
@@ -158,12 +159,23 @@ class Builder:
             cmake_option += " %s " % " ".join(
                                         self.product_info.cmake_options.split())
 
+        # in case a product defines its own configuration, then use it
+        if "cmake_build_type" in self.product_info:
+            self.set_cmake_build_type(self.product_info.cmake_build_type)
+
         # add cmake build_type options
         cmake_option += " -DCMAKE_BUILD_TYPE=" + self.cmake_build_type
 
         # add verbose option if specified in application for this product.
         if self.verbose_mode:
             cmake_option += " -DCMAKE_VERBOSE_MAKEFILE=ON"
+
+        if sys.platform == 'darwin' and self.config.APPLICATION.rpath == "yes":
+            cmake_option += ' -DCMAKE_MACOSX_RPATH=ON'
+            cmake_option += ' -DCMAKE_SKIP_BUILD_RPATH=OFF'
+            cmake_option += ' -DCMAKE_BUILD_WITH_INSTALL_RPATH=OFF'
+            cmake_option += ' -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON'
+            cmake_option += ' -DCMAKE_INSTALL_RPATH=\"@loader_path\"'
 
         # In case CMAKE_GENERATOR is defined in environment, 
         # use it in spite of automatically detect it
@@ -491,7 +503,7 @@ class Builder:
 
         self.log_command("  " + _("Run build script %s\n") % script)
         self.complete_environment(make_options)
-        
+
         res = subprocess.call(script, 
                               shell=True,
                               stdout=self.logger.logTxtFile,
@@ -509,7 +521,7 @@ class Builder:
             return res
         else:
             return 1
-    
+
     def do_script_build(self, script, number_of_proc=0):
         # define make options (may not be used by the script)
         if number_of_proc==0:
@@ -518,20 +530,20 @@ class Builder:
                 nb_proc = self.config.VARS.nb_proc
         else:
             nb_proc = min(number_of_proc, self.config.VARS.nb_proc)
-            
+
         extension = script.split('.')[-1]
         if extension in ["bat","sh"]:
             return self.do_batch_script_build(script, nb_proc)
         if extension == "py":
             return self.do_python_script_build(script, nb_proc)
-        
+
         msg = _("The script %s must have .sh, .bat or .py extension." % script)
         raise src.SatException(msg)
-    
+
     def put_txt_log_in_appli_log_dir(self, file_name):
         '''Put the txt log (that contain the system logs, like make command
            output) in the directory <APPLICATION DIR>/LOGS/<product_name>/
-    
+
         :param file_name Str: the name of the file to write
         '''
         if self.logger.logTxtFile == sys.__stdout__:
@@ -547,4 +559,4 @@ class Builder:
         shutil.move(self.logger.txtFilePath, file_path)
         self.logger.logTxtFile = open(str(self.logger.txtFilePath), 'w')
         self.logger.logTxtFile.write(open(file_path, "r").read())
-        
+

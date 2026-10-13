@@ -170,6 +170,28 @@ class Builder:
         if self.verbose_mode:
             cmake_option += " -DCMAKE_VERBOSE_MAKEFILE=ON"
 
+        if sys.platform == 'darwin':
+            deploy_target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', '15.0')
+            target = os.environ.get('MACOSX_BUILD_SDK', '26.5')
+            sdk_path = ''
+            try:
+                sdk_path = subprocess.check_output(
+                    ['xcrun', '--sdk', 'macosx' + target, '--show-sdk-path'],
+                    stderr=subprocess.DEVNULL, text=True).strip()
+            except (subprocess.CalledProcessError, OSError):
+                pass
+            if not sdk_path or not os.path.isdir(sdk_path):
+                major = target.split('.')[0]
+                candidates = sorted(glob.glob(
+                    '/Library/Developer/CommandLineTools/SDKs/MacOSX%s*.sdk' % major))
+                sdk_path = candidates[-1] if candidates else ''
+            if sdk_path:
+                cmake_option += ' -DCMAKE_OSX_SYSROOT=\"%s\"' % sdk_path
+                cmake_option += ' -DCMAKE_OSX_DEPLOYMENT_TARGET=%s' % deploy_target
+                cmake_option += ' -DCMAKE_C_FLAGS=\"-isysroot %s\"' % sdk_path
+                cmake_option += ' -DCMAKE_CXX_FLAGS=\"-isysroot %s\"' % sdk_path
+                os.environ['SDKROOT'] = sdk_path
+
         if sys.platform == 'darwin' and self.config.APPLICATION.rpath == "yes":
             cmake_option += ' -DCMAKE_MACOSX_RPATH=ON'
             cmake_option += ' -DCMAKE_SKIP_BUILD_RPATH=OFF'

@@ -162,7 +162,7 @@ class Builder:
     def setup_cmake_options(self):
         if sys.platform != 'darwin':
             return "";
-        cmake_options = ""
+        cmake_option = ""
         deploy_target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', '15.0')
         target = os.environ.get('MACOSX_BUILD_SDK', '26.5')
         sdk_path = self.find_sdk_path(target)
@@ -180,7 +180,7 @@ class Builder:
             cmake_option += ' -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON'
             cmake_option += ' -DCMAKE_INSTALL_RPATH=\"@loader_path\"'
 
-        return cmake_options
+        return cmake_option
 
     ##
     # Runs cmake with the given options.
@@ -210,7 +210,7 @@ class Builder:
             cmake_option += " -DCMAKE_VERBOSE_MAKEFILE=ON"
 
         if sys.platform == 'darwin':
-            cmake_options += self.setup_cmake_options()
+            cmake_option += self.setup_cmake_options()
 
         # In case CMAKE_GENERATOR is defined in environment, 
         # use it in spite of automatically detect it
@@ -577,8 +577,8 @@ class Builder:
         configure_options = self.setup_configure_options()
         self.build_environ.set("SAT_CONFIGURE_OPTIONS", configure_options)
 
-        cmake_options = self.setup_cmake_options()
-        self.build_environ.set("SAT_CMAKE_OPTIONS", cmake_options)
+        setup_cmake_options = self.setup_cmake_options()
+        self.build_environ.set("SAT_CMAKE_OPTIONS", setup_cmake_options)
 
         # if product is in hpc mode, set SAT_HPC to 1 
         # in order for the compilation script to take it into account

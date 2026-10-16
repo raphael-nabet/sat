@@ -159,26 +159,52 @@ class Builder:
             sdk_path = candidates[-1] if candidates else ''
         return sdk_path
 
-    def setup_cmake_options(self):
+    def setup_cmake_options(self, quoted=False):
         if sys.platform != 'darwin':
-            return "";
-        cmake_option = ""
+            return ""
+
         deploy_target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', '15.0')
         target = os.environ.get('MACOSX_BUILD_SDK', '26.5')
         sdk_path = self.find_sdk_path(target)
-        if sdk_path:
-            cmake_option += ' -DCMAKE_OSX_SYSROOT=\"%s\"' % sdk_path
-            cmake_option += ' -DCMAKE_OSX_DEPLOYMENT_TARGET=%s' % deploy_target
-            cmake_option += ' -DCMAKE_C_FLAGS=\"-isysroot %s\"' % sdk_path
-            cmake_option += ' -DCMAKE_CXX_FLAGS=\"-isysroot %s\"' % sdk_path
-            os.environ['SDKROOT'] = sdk_path
 
-        if self.config.APPLICATION.rpath == "yes":
-            cmake_option += ' -DCMAKE_MACOSX_RPATH=ON'
-            cmake_option += ' -DCMAKE_SKIP_BUILD_RPATH=OFF'
-            cmake_option += ' -DCMAKE_BUILD_WITH_INSTALL_RPATH=OFF'
-            cmake_option += ' -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON'
-            cmake_option += ' -DCMAKE_INSTALL_RPATH=\"@loader_path\"'
+        cmake_option = " -DCMAKE_OSX_DEPLOYMENT_TARGET=%s" % deploy_target
+        if sdk_path:
+            cmake_option += " -DCMAKE_OSX_SYSROOT=%s" % sdk_path
+            self.build_environ.set("SDKROOT", sdk_path)
+
+        headerpad = "-Wl,-headerpad_max_install_names"
+        cmake_option += " -DCMAKE_EXE_LINKER_FLAGS=%s" % headerpad
+        cmake_option += " -DCMAKE_SHARED_LINKER_FLAGS=%s" % headerpad
+        cmake_option += " -DCMAKE_MODULE_LINKER_FLAGS=%s" % headerpad
+
+        rpath_enabled = ("rpath" in self.config.APPLICATION
+                         and self.config.APPLICATION.rpath == "yes")
+        if rpath_enabled:
+            dep_lib_dirs = []
+            for _, path in self.get_installed_dependencies():
+                for sub in ("lib", "lib64"):
+                    d = os.path.join(path, sub)
+                    if os.path.isdir(d):
+                        dep_lib_dirs.append(d)
+
+            rpaths = ["@loader_path/../lib",   # bin/*       -> lib/
+                      "@loader_path",          # lib/*.dylib -> lib/
+                      "@loader_path/.."]       # plugins lib/<sous-dossier>/*.dylib
+            rpaths += dep_lib_dirs
+
+            rpath_value = ";".join(rpaths)
+            if quoted:
+                rpath_value = '"%s"' % rpath_value
+
+            cmake_option += " -DCMAKE_MACOSX_RPATH=ON"
+            cmake_option += " -DCMAKE_SKIP_BUILD_RPATH=OFF"
+            cmake_option += " -DCMAKE_BUILD_WITH_INSTALL_RPATH=OFF"
+            cmake_option += " -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON"
+            cmake_option += " -DCMAKE_INSTALL_RPATH=%s" % rpath_value
+        else:
+            cmake_option += " -DCMAKE_MACOSX_RPATH=OFF"
+            cmake_option += " -DCMAKE_INSTALL_NAME_DIR=%s" % os.path.join(
+                                                    str(self.install_dir), "lib")
 
         return cmake_option
 
@@ -210,7 +236,7 @@ class Builder:
             cmake_option += " -DCMAKE_VERBOSE_MAKEFILE=ON"
 
         if sys.platform == 'darwin':
-            cmake_option += self.setup_cmake_options()
+            cmake_option += self.setup_cmake_options(quoted=True)
 
         # In case CMAKE_GENERATOR is defined in environment, 
         # use it in spite of automatically detect it

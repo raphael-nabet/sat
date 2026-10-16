@@ -119,6 +119,7 @@ class Builder:
         environ_info = src.product.get_product_dependencies(self.config,
                                                             self.product_name,
                                                             self.product_info)
+
         #environ_info.append(self.product_info.name)
 
         # create build environment
@@ -127,7 +128,7 @@ class Builder:
                                       True)
         self.build_environ.silent = (self.config.USER.output_verbose_level < 5)
         self.build_environ.set_full_environ(self.logger, environ_info)
-        
+
         if add_env_launch:
         # create runtime environment
             self.launch_environ = src.environment.SalomeEnviron(self.config,
@@ -142,6 +143,44 @@ class Builder:
                 self.log("  %s = %s\n" % (ee, vv), 4, False)
 
         return 0
+
+    def find_sdk_path(self, target):
+        sdk_path = ''
+        try:
+            sdk_path = subprocess.check_output(
+                ['xcrun', '--sdk', 'macosx' + target, '--show-sdk-path'],
+                stderr=subprocess.DEVNULL, text=True).strip()
+        except (subprocess.CalledProcessError, OSError):
+            pass
+        if not sdk_path or not os.path.isdir(sdk_path):
+            major = target.split('.')[0]
+            candidates = sorted(glob.glob(
+                '/Library/Developer/CommandLineTools/SDKs/MacOSX%s*.sdk' % major))
+            sdk_path = candidates[-1] if candidates else ''
+        return sdk_path
+
+    def setup_cmake_options(self):
+        if sys.platform != 'darwin':
+            return "";
+        cmake_options = ""
+        deploy_target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', '15.0')
+        target = os.environ.get('MACOSX_BUILD_SDK', '26.5')
+        sdk_path = self.find_sdk_path(target)
+        if sdk_path:
+            cmake_option += ' -DCMAKE_OSX_SYSROOT=\"%s\"' % sdk_path
+            cmake_option += ' -DCMAKE_OSX_DEPLOYMENT_TARGET=%s' % deploy_target
+            cmake_option += ' -DCMAKE_C_FLAGS=\"-isysroot %s\"' % sdk_path
+            cmake_option += ' -DCMAKE_CXX_FLAGS=\"-isysroot %s\"' % sdk_path
+            os.environ['SDKROOT'] = sdk_path
+
+        if self.config.APPLICATION.rpath == "yes":
+            cmake_option += ' -DCMAKE_MACOSX_RPATH=ON'
+            cmake_option += ' -DCMAKE_SKIP_BUILD_RPATH=OFF'
+            cmake_option += ' -DCMAKE_BUILD_WITH_INSTALL_RPATH=OFF'
+            cmake_option += ' -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON'
+            cmake_option += ' -DCMAKE_INSTALL_RPATH=\"@loader_path\"'
+
+        return cmake_options
 
     ##
     # Runs cmake with the given options.
@@ -171,33 +210,7 @@ class Builder:
             cmake_option += " -DCMAKE_VERBOSE_MAKEFILE=ON"
 
         if sys.platform == 'darwin':
-            deploy_target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', '15.0')
-            target = os.environ.get('MACOSX_BUILD_SDK', '26.5')
-            sdk_path = ''
-            try:
-                sdk_path = subprocess.check_output(
-                    ['xcrun', '--sdk', 'macosx' + target, '--show-sdk-path'],
-                    stderr=subprocess.DEVNULL, text=True).strip()
-            except (subprocess.CalledProcessError, OSError):
-                pass
-            if not sdk_path or not os.path.isdir(sdk_path):
-                major = target.split('.')[0]
-                candidates = sorted(glob.glob(
-                    '/Library/Developer/CommandLineTools/SDKs/MacOSX%s*.sdk' % major))
-                sdk_path = candidates[-1] if candidates else ''
-            if sdk_path:
-                cmake_option += ' -DCMAKE_OSX_SYSROOT=\"%s\"' % sdk_path
-                cmake_option += ' -DCMAKE_OSX_DEPLOYMENT_TARGET=%s' % deploy_target
-                cmake_option += ' -DCMAKE_C_FLAGS=\"-isysroot %s\"' % sdk_path
-                cmake_option += ' -DCMAKE_CXX_FLAGS=\"-isysroot %s\"' % sdk_path
-                os.environ['SDKROOT'] = sdk_path
-
-        if sys.platform == 'darwin' and self.config.APPLICATION.rpath == "yes":
-            cmake_option += ' -DCMAKE_MACOSX_RPATH=ON'
-            cmake_option += ' -DCMAKE_SKIP_BUILD_RPATH=OFF'
-            cmake_option += ' -DCMAKE_BUILD_WITH_INSTALL_RPATH=OFF'
-            cmake_option += ' -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON'
-            cmake_option += ' -DCMAKE_INSTALL_RPATH=\"@loader_path\"'
+            cmake_options += self.setup_cmake_options()
 
         # In case CMAKE_GENERATOR is defined in environment, 
         # use it in spite of automatically detect it
@@ -221,6 +234,62 @@ class Builder:
             return res
         else:
             return 1
+
+    def get_installed_dependencies(self):
+        deps = src.product.get_product_dependencies(self.config,
+                                                    self.product_name,
+                                                    self.product_info)
+        installed = []
+        for dep_name in deps:
+            dep_info = src.product.get_product_config(self.config, dep_name)
+            if (not src.product.product_compiles(dep_info)
+                    or src.product.product_is_native(dep_info)):
+                continue
+            if src.product.check_installation(self.config, dep_info):
+                installed.append((dep_name, dep_info.install_dir))
+        return installed
+
+    def setup_configure_options(self):
+        if sys.platform != 'darwin':
+            return ""
+        deploy_target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', '15.0')
+        target = os.environ.get('MACOSX_BUILD_SDK', '26.5')
+
+        def get(name):
+            return (self.build_environ.get(name) or "").strip()
+
+        def prepend(name, value):
+            current = get(name)
+            return f"{current} {value}" if current else value
+
+        dep_lib_dirs = []
+        for _, path in self.get_installed_dependencies():
+            for sub in ("lib", "lib64"):
+                d = os.path.join(path, sub)
+                if os.path.isdir(d):
+                    dep_lib_dirs.append(d)
+
+        sdkroot = self.find_sdk_path(target)
+        osx_flags = f"-isysroot {sdkroot} -mmacosx-version-min={deploy_target}"
+
+        ldflags = prepend("LDFLAGS", osx_flags) + " -Wl,-headerpad_max_install_names"
+        rpath_enabled = ("rpath" in self.config.APPLICATION
+                         and self.config.APPLICATION.rpath == "yes")
+        if rpath_enabled:
+            ldflags += " -Wl,-rpath,@loader_path"
+        for d in dep_lib_dirs:
+            ldflags += f" -L{d}"
+            if rpath_enabled:
+                ldflags += f" -Wl,-rpath,{d}"
+
+        options = (
+            f'CFLAGS="{prepend("CFLAGS", osx_flags)}" '
+            f'CXXFLAGS="{prepend("CXXFLAGS", osx_flags)}" '
+            f'OBJCFLAGS="{prepend("OBJCFLAGS", osx_flags)}" '
+            f'CPPFLAGS="{prepend("CPPFLAGS", f"-isysroot {sdkroot}")}" '
+            f'LDFLAGS="{ldflags}"'
+        )
+        return options
 
     ##
     # Runs build_configure with the given options.
@@ -312,7 +381,7 @@ class Builder:
                               env=self.build_environ.environ.environ,
                               stdout=self.logger.logTxtFile,
                               stderr=subprocess.STDOUT)
-        
+
         self.put_txt_log_in_appli_log_dir("make")
         if res == 0:
             return res
@@ -335,7 +404,7 @@ class Builder:
                               env=self.build_environ.environ.environ,
                               stdout=self.logger.logTxtFile,
                               stderr=subprocess.STDOUT)
-        
+
         res_check=self.check_install()
         if res_check > 0 :
             self.log_command("Error in sat check install - some files are not installed!")
@@ -377,10 +446,10 @@ class Builder:
                 cmd = 'make check'
             else:
                 cmd = 'make test'
-        
+
         if command:
             cmd = command
-        
+
         self.log_command(cmd)
         self.log_command("For more detailed logs, see test logs in %s" % self.build_dir)
 
@@ -396,7 +465,7 @@ class Builder:
             return res
         else:
             return 1
-      
+
     ##
     # Performs a default build for this module.
     def do_default_build(self,
@@ -428,7 +497,7 @@ class Builder:
             cmd = ""
             if use_autotools: cmd = "(autotools)"
             if use_ctest: cmd = "(ctest)"
-            
+
             self.log("\n", 4, False)
             self.log("%(module)s: Run default compilation method %(cmd)s\n" % \
                 { "module": self.module, "cmd": cmd }, 4)
@@ -441,7 +510,7 @@ class Builder:
             if not self.make(): return self.get_result()
             if not self.install(): return self.get_result()
             if not self.clean(): return self.get_result()
-           
+
         else: # CMake
             if self.config.VARS.dist_name=='Win':
                 if not self.wprepare(): return self.get_result()
@@ -483,6 +552,7 @@ class Builder:
 
         return retcode
 
+
     def complete_environment(self, make_options):
         assert self.build_environ is not None
         # pass additional variables to environment 
@@ -503,6 +573,13 @@ class Builder:
                                           self.config.INTERNAL.config.install_dir,
                                           self.config.INTERNAL.config.single_install_dir)
         self.build_environ.set("SINGLE_INSTALL_DIR", single_install_dir)
+
+        configure_options = self.setup_configure_options()
+        self.build_environ.set("SAT_CONFIGURE_OPTIONS", configure_options)
+
+        cmake_options = self.setup_cmake_options()
+        self.build_environ.set("SAT_CMAKE_OPTIONS", cmake_options)
+
         # if product is in hpc mode, set SAT_HPC to 1 
         # in order for the compilation script to take it into account
         if src.product.product_is_hpc(self.product_info):

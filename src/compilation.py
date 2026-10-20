@@ -159,6 +159,15 @@ class Builder:
             sdk_path = candidates[-1] if candidates else ''
         return sdk_path
 
+    @staticmethod
+    def _cmake_option_value(options, var):
+        import re
+        pattern = r'-D%s(?::\w+)?=(?:"([^"]*)"|\'([^\']*)\'|(\S+))' % re.escape(var)
+        value = None
+        for m in re.finditer(pattern, options or ""):
+            value = next(g for g in m.groups() if g is not None)
+        return value
+
     def setup_cmake_options(self, quoted=False):
         if sys.platform != 'darwin':
             return ""
@@ -173,9 +182,21 @@ class Builder:
             self.build_environ.set("SDKROOT", sdk_path)
 
         headerpad = "-Wl,-headerpad_max_install_names"
-        cmake_option += " -DCMAKE_EXE_LINKER_FLAGS=%s" % headerpad
-        cmake_option += " -DCMAKE_SHARED_LINKER_FLAGS=%s" % headerpad
-        cmake_option += " -DCMAKE_MODULE_LINKER_FLAGS=%s" % headerpad
+        product_options = ""
+        if "cmake_options" in self.product_info:
+            product_options = str(self.product_info.cmake_options)
+        for var in ("CMAKE_EXE_LINKER_FLAGS",
+                    "CMAKE_SHARED_LINKER_FLAGS",
+                    "CMAKE_MODULE_LINKER_FLAGS"):
+            user_flags = self._cmake_option_value(product_options, var)
+            flags = headerpad
+            if user_flags and headerpad not in user_flags:
+                flags = "%s %s" % (user_flags, headerpad)
+            elif user_flags:
+                flags = user_flags
+            if quoted or " " in flags:
+                flags = '"%s"' % flags
+            cmake_option += " -D%s=%s" % (var, flags)
 
         rpath_enabled = ("rpath" in self.config.APPLICATION
                          and self.config.APPLICATION.rpath == "yes")
@@ -183,7 +204,7 @@ class Builder:
             dep_lib_dirs = []
             for _, path in self.get_installed_dependencies():
                 for sub in ("lib", "lib64"):
-                    d = os.path.join(path, sub)
+                    d = os.path.realpath(os.path.join(path, sub))
                     if os.path.isdir(d):
                         dep_lib_dirs.append(d)
 
@@ -191,6 +212,7 @@ class Builder:
                       "@loader_path",          # lib/*.dylib -> lib/
                       "@loader_path/.."]       # plugins lib/<sous-dossier>/*.dylib
             rpaths += dep_lib_dirs
+            rpaths = list(dict.fromkeys(rpaths))
 
             rpath_value = ";".join(rpaths)
             if quoted:
@@ -205,7 +227,6 @@ class Builder:
             cmake_option += " -DCMAKE_MACOSX_RPATH=OFF"
             cmake_option += " -DCMAKE_INSTALL_NAME_DIR=%s" % os.path.join(
                                                     str(self.install_dir), "lib")
-
         return cmake_option
 
     ##

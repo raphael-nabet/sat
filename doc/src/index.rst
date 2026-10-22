@@ -62,6 +62,7 @@ List of Commands
    environ <commands/environ>
    clean <commands/clean>
    package <commands/package>
+   package_dmg <commands/package_dmg>
    generate <commands/generate>
    compute_dependencies <commands/compute_dependencies>
    init <commands/init>

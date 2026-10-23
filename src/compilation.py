@@ -18,6 +18,7 @@
 
 import os
 import subprocess
+import platform
 import sys
 import shutil
 import glob
@@ -336,7 +337,34 @@ class Builder:
             f'CPPFLAGS="{prepend("CPPFLAGS", f"-isysroot {sdkroot}")}" '
             f'LDFLAGS="{ldflags}"'
         )
+        options += self.apple_silicon_host_options()
         return options
+
+    ##
+    # Apple Silicon: build/host type of the autotools configure scripts,
+    # added to SAT_CONFIGURE_OPTIONS.
+    #
+    # "uname -p" returns "arm" on Apple Silicon: the old config.guess scripts
+    # shipped by some products then detect a 32-bit ARM host
+    # (arm-apple-darwin). Most products do not care, but some silently change
+    # their build: omniORB/omniORBpy add -D__arm__, which enables
+    # OMNI_MIXED_ENDIAN_DOUBLE (every CORBA double gets its two 32-bit words
+    # swapped between Python and C++).
+    #
+    # --build/--host alone is not enough: configure passes the triplet to
+    # config.sub, and the old ones reject it ("machine `aarch64-apple' not
+    # recognized", omniORBpy 4.2.5). The cache variables ac_cv_build and
+    # ac_cv_host, given as configure arguments like CFLAGS=..., make configure
+    # use the triplet as is ("checking build system type... (cached)"):
+    # neither config.guess nor config.sub is run. Build and host are
+    # identical: no cross-compilation mode.
+    @staticmethod
+    def apple_silicon_host_options():
+        if sys.platform != "darwin" or platform.machine() != "arm64":
+            return ""
+        triplet = "aarch64-apple-darwin" + platform.release()
+        return (" --build={0} --host={0}"
+                " ac_cv_build={0} ac_cv_host={0}").format(triplet)
 
     ##
     # Runs build_configure with the given options.

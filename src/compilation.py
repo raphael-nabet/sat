@@ -301,8 +301,8 @@ class Builder:
     def setup_configure_options(self):
         if sys.platform != 'darwin':
             return ""
-        deploy_target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', '15.0')
-        target = os.environ.get('MACOSX_BUILD_SDK', '26.5')
+        deploy_target = self.config.APPLICATION.minimal_sdk
+        target = self.config.APPLICATION.build_sdk
 
         def get(name):
             return (self.build_environ.get(name) or "").strip()

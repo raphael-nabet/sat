@@ -174,8 +174,8 @@ class Builder:
         if sys.platform != 'darwin':
             return ""
 
-        deploy_target = os.environ.get('MACOSX_DEPLOYMENT_TARGET', '15.0')
-        target = os.environ.get('MACOSX_BUILD_SDK', '26.5')
+        deploy_target = self.config.APPLICATION.minimal_sdk
+        target = self.config.APPLICATION.build_sdk
         sdk_path = self.find_sdk_path(target)
 
         cmake_option = " -DCMAKE_OSX_DEPLOYMENT_TARGET=%s" % deploy_target

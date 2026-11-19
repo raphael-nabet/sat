@@ -13,7 +13,7 @@
 #  Lesser General Public License for more details.
 
 """
-Windows MSI installer builder for SAT (``sat package <app> --archive msi``).
+Windows MSI installer builder for SAT (``sat package <app> --archive-type msi``).
 
 This module is **generic**: it knows nothing about SALOME specifically.
 Everything project-specific (the WiX ``Package.wxs`` feature tree, branding,
@@ -505,7 +505,7 @@ def _output_path(config, options, installer_cfg, build_dir):
 
 def build_msi(config, options, logger):
     """Build the Windows MSI for the given application
-    (sat package <application> --archive msi).
+    (sat package <application> --archive-type msi).
 
     Returns a src.returnCode-style int (0 = OK).
     Requires an ``APPLICATION.installer`` section (provided by the project).

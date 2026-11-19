@@ -111,7 +111,7 @@ $LOCAL.workdir + $VARS.sep + \"""" + PROJECT_DIR + """\" + $VARS.sep + "project.
 
 # Define all possible option for the package command :  sat package <options>
 #
-# The format of the archive is selected with --archive (tar, dmg or msi).
+# The format of the archive is selected with --archive-type (tar, dmg or msi).
 # The options are compatible with all the formats, except when the help
 # says otherwise: the msi installer (src/msi.py) only contains the binaries
 # of the application, and the dmg options only apply to the dmg archive.
@@ -119,7 +119,7 @@ NOT_MSI = _("Not compatible with the msi archive.")
 DMG_ONLY = _("Required : dmg archive option")
 
 parser = src.options.Options()
-parser.add_option('a', 'archive', 'string', 'archive',
+parser.add_option('a', 'archive-type', 'string', 'archive_type',
     _('Optional : Default option is tar.\n'
       '           Available options is dmg, tar and msi.\n'
       '           With dmg, it can also be the path of an archive produced by\n'
@@ -1764,11 +1764,11 @@ def _is_set(options, dest):
 
 def get_archive_type(options, logger):
     """Returns (archive type, path of an existing archive to convert or None)
-       from the --archive option, None if the option is wrong.
+       from the --archive-type option, None if the option is wrong.
 
-       --archive accepts tar (default), dmg, msi, or the path of an archive
+       --archive-type accepts tar (default), dmg, msi, or the path of an archive
        produced by "sat package -b" (dmg built from this archive)."""
-    value = options.archive
+    value = options.archive_type
     if not value:
         return ARCHIVE_TAR, None
     if value.lower() in ARCHIVE_TYPES:
@@ -1809,11 +1809,11 @@ def check_options_compatibility(options, archive_type, from_archive, logger):
     """Checks that the options are compatible with the archive type.
        Returns True if they are."""
     if archive_type != ARCHIVE_DMG:
-        # the dmg options require --archive dmg
+        # the dmg options require --archive-type dmg
         dmg_options = [o for o, dest, default in DMG_OPTIONS
                        if getattr(options, dest, default) != default]
         if dmg_options:
-            msg = _("Error: option(s) %(1)s require the dmg archive (--archive dmg), "
+            msg = _("Error: option(s) %(1)s require the dmg archive (--archive-type dmg), "
                     "not the %(2)s archive") % \
                   {"1": ", ".join(dmg_options), "2": archive_type}
             logger.write(src.printcolors.printcError(msg) + "\n", 1)
@@ -1863,8 +1863,6 @@ def build_dmg_from_archive(runner, options, from_archive, logger):
     name, dir_name = DMG.DEFAULT_NAME, dir_default
     if options.name:
         name = os.path.basename(options.name)
-        if os.path.dirname(options.name):
-            dir_name = os.path.abspath(os.path.dirname(options.name))
     if name.endswith((".app", ".dmg")):
         name = name[:-4]
     return DMG.build_dmg(runner.cfg, logger, options, dir_name, name,
@@ -1909,7 +1907,7 @@ There are four kinds of archive, which can be mixed:
  4 - The salomeTools archive.
      It contains code utility salomeTools.
 
-The format of the archive is selected with --archive:
+The format of the archive is selected with --archive-type (-a):
  tar (default), dmg (macOS bundle and disk image) or msi (Windows installer).
 
 examples:
@@ -1922,17 +1920,17 @@ examples:
  >> sat package --salometools
  >> sat package --project salome --salometools
 
- # dmg archive (macOS): SALOME.app and SALOME-<version>-<dist>-<arch>.dmg
- >> sat package SALOME-master-macOS --archive dmg
- >> sat package SALOME-master-macOS --archive dmg --name SALOME --icon salome.png --slim
- >> sat package SALOME-master-macOS --archive dmg --bundle_version 9.16.0 --sign_adhoc --replace
- >> sat package SALOME-master-macOS --archive dmg --no_dmg --no_test
+ # dmg archive (macOS): SALOME.app and SALOME.dmg
+ >> sat package SALOME-master-macOS --archive-type dmg
+ >> sat package SALOME-master-macOS --archive-type dmg --name SALOME --icon salome.png --slim
+ >> sat package SALOME-master-macOS --archive-type dmg --bundle_version 9.16.0 --sign_adhoc --replace
+ >> sat package SALOME-master-macOS --archive-type dmg --no_dmg --no_test
  # dmg archive built from an archive produced by "sat package -b"
- >> sat package SALOME-master-macOS --archive /tmp/SALOME-master-MACOS15.tar.gz --icon salome.png
+ >> sat package SALOME-master-macOS --archive-type /tmp/SALOME-master-MACOS15.tar.gz --icon salome.png
 
  # msi archive (Windows): <APPLICATION.name>-win64.msi in <workdir>/MSI/build
- >> sat package SALOME-master-windows --archive msi
- >> sat package SALOME-master-windows --archive msi --name C:\\packages\\SALOME-9.16.0 --add_files LICENSE.txt""")
+ >> sat package SALOME-master-windows --archive-type msi
+ >> sat package SALOME-master-windows --archive-type msi --name C:\\packages\\SALOME-9.16.0 --add_files LICENSE.txt""")
 
 def run(args, runner, logger):
     '''method that is called when salomeTools is called with package parameter.
@@ -1951,7 +1949,7 @@ def run(args, runner, logger):
     if not check_options_compatibility(options, archive_type, from_archive, logger):
         return 1
 
-    # --archive msi builds a Windows installer directly from the application's
+    # --archive-type msi builds a Windows installer directly from the application's
     # compiled install tree (not from a tar.gz). Handle it early and return.
     if archive_type == ARCHIVE_MSI:
         return build_msi_package(runner, options, logger)
@@ -2048,8 +2046,6 @@ Please add it in file:
         dir_name = package_default_path
         if options.name:
             archive_name = os.path.basename(options.name)
-            if os.path.dirname(options.name):
-                dir_name = os.path.abspath(os.path.dirname(options.name))
         if archive_name.endswith((".app", ".dmg")):
             archive_name = archive_name[:-4]
     elif options.name:

@@ -89,7 +89,7 @@ Usage
 
 Archive formats
 ===============
-The format of the archive is selected with the *--archive* option:
+The format of the archive is selected with the *--archive-type* option (alias *-a*):
 
 * ``tar`` (default): a compressed Tar_ file ``.tar.gz``;
 * ``dmg``: a macOS application bundle (``SALOME.app``) and a disk image (``.dmg``), see below;
@@ -111,13 +111,13 @@ An incompatible option stops the command with an error.
 
 * Create a dmg archive on macOS, an msi archive on Windows: ::
 
-    sat package SALOME-master-macOS --archive dmg
-    sat package SALOME-master-windows --archive msi
+    sat package SALOME-master-macOS --archive-type dmg
+    sat package SALOME-master-windows --archive-type msi
 
 dmg archive (macOS)
 -------------------
 The dmg archive is only available on macOS (Xcode Command Line Tools are required).
-It implies *--binaries*. The dmg options (*--icon*, *--slim*...) require *--archive dmg*.
+It implies *--binaries*. The dmg options (*--icon*, *--slim*...) require *--archive-type dmg*.
 
 The bundle contains the files of the archive (binaries, launcher, and the sources,
 project, salomeTools or additional files when requested): they are copied into
@@ -140,21 +140,21 @@ The bundle is not signed: the linker signatures of the binaries are kept and onl
 the invalid ones are re-signed ad hoc. Use *--sign_adhoc* to sign the whole bundle.
 Notarization (Developer ID signature of every binary) is not done by this command.
 
-* Create ``SALOME.app`` and ``SALOME-<version>-<dist>-<arch>.dmg`` in ``<workdir>/PACKAGE``: ::
+* Create ``SALOME.app`` and ``SALOME.dmg`` in ``<workdir>/PACKAGE``: ::
 
-    sat package SALOME-master-macOS --archive dmg
+    sat package SALOME-master-macOS --archive-type dmg
 
 * With a name, an icon, without the development files: ::
 
-    sat package SALOME-master-macOS --archive dmg --name SALOME --icon salome.png --slim
+    sat package SALOME-master-macOS --archive-type dmg --name SALOME --icon salome.png --slim
 
 * From an archive already produced by ``sat package --binaries``: ::
 
-    sat package SALOME-master-macOS --archive /tmp/SALOME-master-MACOS15.tar.gz
+    sat package SALOME-master-macOS --archive-type /tmp/SALOME-master-MACOS15.tar.gz
 
 * Only the bundle, replacing an existing one: ::
 
-    sat package SALOME-master-macOS --archive dmg --no_dmg --replace
+    sat package SALOME-master-macOS --archive-type dmg --no_dmg --replace
 
 .. note::
    When launched from the Finder, the output of SALOME is written in
@@ -181,12 +181,12 @@ command unless *--force_creation* is given.
 
 * Create ``<APPLICATION.name>-win64.msi`` in ``<workdir>/MSI/build``: ::
 
-    sat package SALOME-master-windows --archive msi
+    sat package SALOME-master-windows --archive-type msi
 
 * With a name or a full path, additional files at the root of the installation,
   without the products that have a given property: ::
 
-    sat package SALOME-master-windows --archive msi --name C:\out\SALOME --add_files LICENSE.txt --without_properties is_SALOME_module:yes
+    sat package SALOME-master-windows --archive-type msi --name C:\out\SALOME --add_files LICENSE.txt --without_properties is_SALOME_module:yes
 
 Some useful configuration paths
 =================================
